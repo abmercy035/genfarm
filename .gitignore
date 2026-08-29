@@ -1,0 +1,10 @@
+.env
+node_modules
+.next
+*.log
+*.env.local
+.vscode
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example
