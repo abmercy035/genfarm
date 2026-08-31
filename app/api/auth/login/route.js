@@ -15,36 +15,12 @@ export async function POST(request) {
     }
 
     const cleanInput = loginInput.trim();
-    let user = await User.findOne({
+    const user = await User.findOne({
       $or: [
         { phone: cleanInput },
         { email: cleanInput.toLowerCase() }
       ]
     }).select('+password +role +isActive');
-    
-    // Auto-bootstrap initial Super Admin account in production if database is fresh/empty
-    if (!user) {
-      const userCount = await User.countDocuments({});
-      if (userCount === 0) {
-        const hashedPassword = await bcrypt.hash('password123', 10);
-        await User.create([
-          {
-            name: 'General Manager',
-            phone: '08000000001',
-            email: 'admin@genfarm.com',
-            password: hashedPassword,
-            role: 'SUPER_ADMIN',
-            isActive: true
-          }
-        ]);
-        user = await User.findOne({
-          $or: [
-            { phone: cleanInput },
-            { email: cleanInput.toLowerCase() }
-          ]
-        }).select('+password +role +isActive');
-      }
-    }
 
     if (!user || !user.isActive) {
       return NextResponse.json({ success: false, error: 'Invalid email/phone or account inactive.' }, { status: 401 });
