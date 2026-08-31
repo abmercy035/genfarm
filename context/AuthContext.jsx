@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import Cookies from 'js-cookie';
 import { usePathname, useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
@@ -12,57 +11,64 @@ export function AuthProvider({ children }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [mounted, setMounted] = useState(false);
-
+  // Validate session via HTTP-only cookie on mount
   useEffect(() => {
-    setMounted(true);
-    // Check saved session in localStorage/cookies
-    const savedUser = localStorage.getItem('genfarm_user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('genfarm_user');
-        setUser(null);
-      }
-    } else {
-      setUser(null);
-    }
-    setLoading(false);
+    checkSession();
   }, []);
 
-  // Protect routes: Redirect to /login if unauthenticated (only after client mounted)
+  const checkSession = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.data);
+      } else {
+        setUser(null);
+      }
+    } catch (err) {
+      console.error('Session check error:', err);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Protect routes: Redirect to /login if unauthenticated
   useEffect(() => {
-    if (mounted && !loading && !user && pathname !== '/login') {
+    if (!loading && !user && pathname !== '/login') {
       router.push('/login');
     }
-  }, [mounted, loading, user, pathname, router]);
+  }, [loading, user, pathname, router]);
 
   const login = async (phone, password) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ phone, password })
     });
     const data = await res.json();
     if (data.success) {
       setUser(data.data);
-      localStorage.setItem('genfarm_user', JSON.stringify(data.data));
-      Cookies.set('genfarm_token', data.token);
       return { success: true };
     }
     return { success: false, error: data.error };
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('genfarm_user');
-    Cookies.remove('genfarm_token');
-    router.push('/login');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      console.error('Logout error', e);
+    } finally {
+      setUser(null);
+      router.push('/login');
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, checkSession }}>
       {children}
     </AuthContext.Provider>
   );

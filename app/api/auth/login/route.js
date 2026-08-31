@@ -53,9 +53,11 @@ export async function POST(request) {
 
     const response = NextResponse.json({ success: true, data: userData, token });
     
-    // Set HTTP cookie
+    // Set secure HTTP-only cookie
     response.cookies.set('genfarm_token', token, {
-      httpOnly: false,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60
     });
