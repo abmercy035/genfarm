@@ -3,10 +3,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Phone, Lock, ArrowRight } from 'lucide-react';
+import { ShieldCheck, User, Lock, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
 
-    const result = await login(phone, password);
+    const result = await login(identifier, password);
     if (result.success) {
       router.push('/');
     } else {
@@ -46,14 +46,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Phone Number</label>
+            <label className="block font-bold text-slate-700 mb-1">Email or Phone Number</label>
             <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+              <User className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               <input
                 type="text"
                 required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                placeholder="admin@genfarm.com or 08000000001"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full h-11 pl-10 pr-3 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500"
               />
             </div>

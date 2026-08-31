@@ -7,13 +7,20 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     await dbConnect();
-    const { phone, password } = await request.json();
+    const { identifier, phone, email, password } = await request.json();
+    const loginInput = identifier || email || phone;
 
-    if (!phone || !password) {
-      return NextResponse.json({ success: false, error: 'Phone and password are required.' }, { status: 400 });
+    if (!loginInput || !password) {
+      return NextResponse.json({ success: false, error: 'Email/Phone and password are required.' }, { status: 400 });
     }
 
-    let user = await User.findOne({ phone }).select('+password +role +isActive');
+    const cleanInput = loginInput.trim();
+    let user = await User.findOne({
+      $or: [
+        { phone: cleanInput },
+        { email: cleanInput.toLowerCase() }
+      ]
+    }).select('+password +role +isActive');
     
     // Auto-bootstrap initial Super Admin account in production if database is fresh/empty
     if (!user) {
@@ -30,12 +37,17 @@ export async function POST(request) {
             isActive: true
           }
         ]);
-        user = await User.findOne({ phone }).select('+password +role +isActive');
+        user = await User.findOne({
+          $or: [
+            { phone: cleanInput },
+            { email: cleanInput.toLowerCase() }
+          ]
+        }).select('+password +role +isActive');
       }
     }
 
     if (!user || !user.isActive) {
-      return NextResponse.json({ success: false, error: 'Invalid phone number or account inactive.' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Invalid email/phone or account inactive.' }, { status: 401 });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);

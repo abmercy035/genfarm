@@ -41,12 +41,12 @@ export function AuthProvider({ children }) {
     }
   }, [loading, user, pathname, router]);
 
-  const login = async (phone, password) => {
+  const login = async (identifier, password) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ phone, password })
+      body: JSON.stringify({ identifier, password })
     });
     const data = await res.json();
     if (data.success) {
