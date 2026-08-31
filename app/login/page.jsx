@@ -52,7 +52,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
-                placeholder="admin@genfarm.com or 08000000001"
+                placeholder="example@gmail or 08000000000"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full h-11 pl-10 pr-3 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-emerald-500"
