@@ -7,7 +7,23 @@ export async function GET(request) {
   try {
     await dbConnect();
     const pens = await Pen.find({}).populate('flockId').sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, data: pens });
+    
+    // Calculate assigned flock count per pen
+    const flocks = await Flock.find({ status: { $ne: 'sold' } });
+    
+    const pensWithFlockCount = pens.map((pen) => {
+      const penObj = pen.toObject();
+      const assignedFlocks = flocks.filter((f) => f.penId && f.penId.toString() === pen._id.toString());
+      const liveBirdCount = assignedFlocks.reduce((sum, f) => sum + (f.current_bird_count || 0), 0);
+      
+      penObj.current_bird_count = liveBirdCount;
+      penObj.assignedFlockCount = assignedFlocks.length;
+      penObj.assignedFlocks = assignedFlocks.map(f => ({ _id: f._id, name: f.name, breed: f.breed, count: f.current_bird_count }));
+      penObj.status = liveBirdCount > 0 ? 'active' : 'empty';
+      return penObj;
+    });
+
+    return NextResponse.json({ success: true, data: pensWithFlockCount });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

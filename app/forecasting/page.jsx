@@ -44,10 +44,10 @@ export default function PredictiveCalculatorPage() {
   }, [liveBirds, daysAhead, hdepPct, gramsPerBird, cratePrice, bagCost]);
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col pt-14 lg:pt-0">
       <Navbar title="Predictive Production & Feed Calculator" />
 
-      <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
+      <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
@@ -123,7 +123,7 @@ export default function PredictiveCalculatorPage() {
               {/* Pricing Assumptions */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-600">Egg Price / Crate ($)</label>
+                  <label className="block font-semibold mb-1 text-slate-600">Egg Price / Crate (₦)</label>
                   <input
                     type="number"
                     value={cratePrice}
@@ -132,7 +132,7 @@ export default function PredictiveCalculatorPage() {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1 text-slate-600">Feed Price / Bag ($)</label>
+                  <label className="block font-semibold mb-1 text-slate-600">Feed Price / Bag (₦)</label>
                   <input
                     type="number"
                     value={bagCost}
@@ -196,15 +196,15 @@ export default function PredictiveCalculatorPage() {
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <p className="text-[11px] text-slate-400">Egg Revenue</p>
-                    <p className="text-lg font-extrabold text-amber-400">${projections.estimatedRevenue.toLocaleString()}</p>
+                    <p className="text-lg font-extrabold text-amber-400">₦{projections.estimatedRevenue.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-400">Feed Cost</p>
-                    <p className="text-lg font-extrabold text-rose-400">${projections.estimatedFeedCost.toLocaleString()}</p>
+                    <p className="text-lg font-extrabold text-rose-400">₦{projections.estimatedFeedCost.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-400">Est. Profit Margin</p>
-                    <p className="text-xl font-black text-emerald-400">${projections.projectedMargin.toLocaleString()}</p>
+                    <p className="text-xl font-black text-emerald-400">₦{projections.projectedMargin.toLocaleString()}</p>
                   </div>
                 </div>
               </div>

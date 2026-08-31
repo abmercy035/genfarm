@@ -45,20 +45,22 @@ export async function PUT(request, context) {
 
     // Reassignment logic for Pens
     if (oldPenId && oldPenId !== newPenId) {
-      // Clear old pen if it referenced this flock
-      await Pen.findByIdAndUpdate(oldPenId, { flockId: null, status: 'empty' });
+      // Recalculate old pen total
+      const oldPenFlocks = await Flock.find({ penId: oldPenId, status: { $ne: 'sold' } });
+      const oldTotal = oldPenFlocks.reduce((sum, f) => sum + (f.current_bird_count || 0), 0);
+      await Pen.findByIdAndUpdate(oldPenId, {
+        current_bird_count: oldTotal,
+        status: oldPenFlocks.length > 0 ? 'active' : 'empty'
+      });
     }
 
     if (newPenId) {
-      // If target new pen had another flock assigned, clear that flock's penId
-      const targetPen = await Pen.findById(newPenId);
-      if (targetPen && targetPen.flockId && targetPen.flockId.toString() !== id) {
-        await Flock.findByIdAndUpdate(targetPen.flockId, { penId: null, status: 'unassigned' });
-      }
-
+      // Recalculate new pen total
+      const newPenFlocks = await Flock.find({ penId: newPenId, status: { $ne: 'sold' } });
+      const newTotal = newPenFlocks.reduce((sum, f) => sum + (f.current_bird_count || 0), 0);
       await Pen.findByIdAndUpdate(newPenId, { 
         flockId: existingFlock._id, 
-        current_bird_count: existingFlock.current_bird_count,
+        current_bird_count: newTotal,
         status: 'active'
       });
     }
@@ -79,9 +81,15 @@ export async function DELETE(request, context) {
     const flock = await Flock.findByIdAndDelete(id);
     if (!flock) return NextResponse.json({ success: false, error: 'Flock not found' }, { status: 404 });
 
-    // Unassign pen if linked
+    // Update target pen current_bird_count if linked
     if (flock.penId) {
-      await Pen.findByIdAndUpdate(flock.penId, { flockId: null, status: 'empty' });
+      const remainingFlocks = await Flock.find({ penId: flock.penId, _id: { $ne: id }, status: { $ne: 'sold' } });
+      const newTotal = remainingFlocks.reduce((sum, f) => sum + (f.current_bird_count || 0), 0);
+      await Pen.findByIdAndUpdate(flock.penId, {
+        current_bird_count: newTotal,
+        status: remainingFlocks.length > 0 ? 'active' : 'empty',
+        flockId: remainingFlocks.length > 0 ? remainingFlocks[0]._id : null
+      });
     }
 
     return NextResponse.json({ success: true, data: flock });

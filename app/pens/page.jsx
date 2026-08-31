@@ -2,15 +2,28 @@
 
 import React, { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
-import { Home, Users, Plus, Trash2, Edit3, X, RefreshCw } from 'lucide-react';
+import ConfirmModal from '@/components/ConfirmModal';
+import { Home, Users, Plus, Trash2, Edit3, X } from 'lucide-react';
 
 export default function PensPage() {
   const [pens, setPens] = useState([]);
   const [flocks, setFlocks] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Modals
   const [showPenModal, setShowPenModal] = useState(false);
   const [showFlockModal, setShowFlockModal] = useState(false);
   const [editingFlock, setEditingFlock] = useState(null);
+
+  // Confirm Modal state
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    targetId: null,
+    targetType: null // 'pen' or 'flock'
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Pen Form state
   const [penForm, setPenForm] = useState({
@@ -69,13 +82,13 @@ export default function PensPage() {
         setShowPenModal(false);
         setPenForm({ name: '', type: 'Layers', location: 'North Shed', capacity: 500, current_bird_count: 500, notes: '' });
         fetchData();
-      } else {
-        alert(data.error);
       }
     } catch (err) {
-      alert(err.message);
+      console.error('Create pen error', err);
     }
   };
+
+  const [voucherNotification, setVoucherNotification] = useState(null);
 
   const handleSaveFlock = async (e) => {
     e.preventDefault();
@@ -92,13 +105,15 @@ export default function PensPage() {
       if (data.success) {
         setShowFlockModal(false);
         setEditingFlock(null);
+        if (data.expenseVoucherRef) {
+          setVoucherNotification(`Flock created & automatic accounting expense voucher #${data.expenseVoucherRef} was posted to Chief Accountant Ledger!`);
+          setTimeout(() => setVoucherNotification(null), 6000);
+        }
         setFlockForm({ name: '', breed: 'Hy-Line Brown', penId: '', initial_bird_count: 500, current_bird_count: 500, ageWeeks: 20, status: 'active' });
         fetchData();
-      } else {
-        alert(data.error);
       }
     } catch (err) {
-      alert(err.message);
+      console.error('Save flock error', err);
     }
   };
 
@@ -116,77 +131,100 @@ export default function PensPage() {
     setShowFlockModal(true);
   };
 
-  const handleDeleteFlock = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this flock record?')) return;
-    try {
-      const res = await fetch(`/api/flocks/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setFlocks((prev) => prev.filter((f) => f._id !== id));
-        fetchData();
-      } else {
-        alert('Delete failed: ' + (data.error || 'Unknown error'));
-      }
-    } catch (err) {
-      alert('Delete error: ' + err.message);
-    }
+  // Triggers modern confirm modal for Flock
+  const promptDeleteFlock = (id, name) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Delete Flock Batch',
+      message: `Are you sure you want to permanently delete "${name}"?`,
+      targetId: id,
+      targetType: 'flock'
+    });
   };
 
-  const handleDeletePen = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this pen?')) return;
+  // Triggers modern confirm modal for Pen
+  const promptDeletePen = (id, name) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Delete Pen Enclosure',
+      message: `Are you sure you want to delete "${name}"? Linked flocks will be unassigned.`,
+      targetId: id,
+      targetType: 'pen'
+    });
+  };
+
+  // Execution handler for confirmed deletion
+  const executeDelete = async () => {
+    const { targetId, targetType } = confirmState;
+    if (!targetId || !targetType) return;
+
     try {
-      const res = await fetch(`/api/pens/${id}`, { method: 'DELETE' });
+      setIsDeleting(true);
+      const endpoint = targetType === 'flock' ? `/api/flocks/${targetId}` : `/api/pens/${targetId}`;
+      const res = await fetch(endpoint, { method: 'DELETE' });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setPens((prev) => prev.filter((p) => p._id !== id));
+
+      if (data.success) {
+        if (targetType === 'flock') {
+          setFlocks((prev) => prev.filter((f) => f._id !== targetId));
+        } else {
+          setPens((prev) => prev.filter((p) => p._id !== targetId));
+        }
         fetchData();
-      } else {
-        alert('Delete failed: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
-      alert('Delete error: ' + err.message);
+      console.error('Delete error', err);
+    } finally {
+      setIsDeleting(false);
+      setConfirmState({ isOpen: false, title: '', message: '', targetId: null, targetType: null });
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col">
-      <Navbar title="Pen Enclosures & Flock Management" />
+    <div className="flex-1 flex flex-col pt-14 lg:pt-0">
+      <Navbar title="Pens & Flock Management" />
 
-      <main className="p-6 space-y-6 max-w-7xl mx-auto w-full">
+      <main className="p-3 sm:p-6 space-y-5 sm:space-y-6 max-w-7xl mx-auto w-full">
         {/* Top Header Buttons */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <h2 className="text-xl font-extrabold text-slate-900">Farm Housing & Flock Inventory</h2>
-            <p className="text-xs text-slate-500">Configure coops, pens, bird capacities, and active batch assignments.</p>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">Coop & Bird Allocation</h2>
+            <p className="text-[11px] sm:text-xs text-slate-500">Manage housing pens, live bird counts, and flock assignments.</p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-2 w-full sm:w-auto">
             <button
               onClick={() => {
                 setEditingFlock(null);
                 setFlockForm({ name: '', breed: 'Hy-Line Brown', penId: '', initial_bird_count: 500, current_bird_count: 500, ageWeeks: 20, status: 'active' });
                 setShowFlockModal(true);
               }}
-              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs rounded-xl shadow-xs flex items-center gap-2"
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
             >
               <Users className="w-4 h-4 text-slate-500" />
-              <span>Add Flock Batch</span>
+              <span>Add Flock</span>
             </button>
             <button
               onClick={() => setShowPenModal(true)}
-              className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2"
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Pen Enclosure</span>
+              <span>Add Pen</span>
             </button>
           </div>
         </div>
 
-        {/* Pens Table / Grid */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        {voucherNotification && (
+          <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-xl text-emerald-900 font-extrabold text-xs shadow-xs">
+            ✓ {voucherNotification}
+          </div>
+        )}
+
+        {/* Pens Grid */}
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-sm">Active Pen Enclosures ({pens.length})</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
             {pens.map((pen) => (
               <div key={pen._id} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
                 <div className="flex justify-between items-start">
@@ -196,7 +234,7 @@ export default function PensPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleDeletePen(pen._id)}
+                    onClick={() => promptDeletePen(pen._id, pen.name)}
                     className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                     title="Delete Pen"
                   >
@@ -204,14 +242,29 @@ export default function PensPage() {
                   </button>
                 </div>
 
-                <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1">
+                <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
                   <div className="flex justify-between font-semibold">
-                    <span className="text-slate-500">Live Birds:</span>
-                    <span className="text-slate-900">{pen.current_bird_count} / {pen.capacity}</span>
+                    <span className="text-slate-500">Live Birds Occupancy:</span>
+                    <span className={`font-bold ${pen.current_bird_count >= pen.capacity ? 'text-rose-600' : 'text-slate-900'}`}>
+                      {pen.current_bird_count} / {pen.capacity} ({pen.capacity > 0 ? Math.round((pen.current_bird_count / pen.capacity) * 100) : 0}%)
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Assigned Flock:</span>
-                    <span className="font-bold text-emerald-800">{pen.flockId?.name || 'Unassigned'}</span>
+                  <div className="flex justify-between items-start">
+                    <span className="text-slate-500">Assigned Flocks:</span>
+                    <div className="text-right">
+                      {pen.assignedFlocks && pen.assignedFlocks.length > 0 ? (
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded text-[11px] inline-block">
+                            {pen.assignedFlockCount} {pen.assignedFlockCount === 1 ? 'Flock Batch' : 'Flock Batches'}
+                          </span>
+                          <div className="text-[10px] text-slate-500">
+                            {pen.assignedFlocks.map(f => f.name).join(', ')}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-amber-600 font-normal italic">0 Batches (Empty)</span>
+                      )}
+                    </div>
                   </div>
                   {pen.notes && (
                     <p className="text-[11px] text-slate-400 pt-1 border-t italic">{pen.notes}</p>
@@ -223,10 +276,11 @@ export default function PensPage() {
         </div>
 
         {/* Flocks Section */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-sm">Registered Flocks ({flocks.length})</h3>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase">
@@ -249,12 +303,12 @@ export default function PensPage() {
                       {flock.penId?.name ? (
                         flock.penId.name
                       ) : (
-                        <span className="text-amber-600 font-normal italic">Unassigned (No Pen)</span>
+                        <span className="text-amber-600 font-normal italic">Unassigned</span>
                       )}
                     </td>
                     <td className="py-3">{flock.initial_bird_count}</td>
                     <td className="py-3 font-bold text-slate-900">{flock.current_bird_count}</td>
-                    <td className="py-3">{flock.ageWeeks} weeks</td>
+                    <td className="py-3">{flock.ageWeeks} wks</td>
                     <td className="py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         flock.status === 'active' 
@@ -275,7 +329,7 @@ export default function PensPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteFlock(flock._id)}
+                        onClick={() => promptDeleteFlock(flock._id, flock.name)}
                         className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                         title="Delete Flock"
                       >
@@ -287,15 +341,72 @@ export default function PensPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card List */}
+          <div className="md:hidden space-y-3">
+            {flocks.map((flock) => (
+              <div key={flock._id} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between items-start border-b border-slate-200/60 pb-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900">{flock.name}</h4>
+                    <p className="text-[10px] text-slate-500">{flock.breed} • {flock.ageWeeks} wks old</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    flock.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {flock.status}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-500">Pen Location:</span>
+                  <span className="font-bold text-emerald-800">{flock.penId?.name || 'Unassigned'}</span>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-500">Live Birds / Initial:</span>
+                  <span className="font-bold text-slate-900">{flock.current_bird_count} / {flock.initial_bird_count}</span>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/60">
+                  <button
+                    onClick={() => handleOpenEditFlock(flock)}
+                    className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>Reassign</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => promptDeleteFlock(flock._id, flock.name)}
+                    className="px-2 py-1 bg-rose-50 border border-rose-200 text-rose-700 font-bold rounded-lg text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Custom Confirmation Modal */}
+        <ConfirmModal
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          isDeleting={isDeleting}
+          onConfirm={executeDelete}
+          onCancel={() => setConfirmState({ isOpen: false, title: '', message: '', targetId: null, targetType: null })}
+        />
 
         {/* Modal - Create Pen */}
         {showPenModal && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-xl">
               <div className="flex justify-between items-center border-b pb-3">
                 <h3 className="font-bold text-slate-900 text-base">Add New Pen Enclosure</h3>
-                <button onClick={() => setShowPenModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowPenModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -374,7 +485,7 @@ export default function PensPage() {
 
                 <button
                   type="submit"
-                  className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all"
+                  className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Save Pen Enclosure
                 </button>
@@ -386,12 +497,12 @@ export default function PensPage() {
         {/* Modal - Create / Edit / Reassign Flock */}
         {showFlockModal && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-xl">
               <div className="flex justify-between items-center border-b pb-3">
                 <h3 className="font-bold text-slate-900 text-base">
                   {editingFlock ? 'Edit / Reassign Flock Batch' : 'Add New Flock Batch'}
                 </h3>
-                <button onClick={() => setShowFlockModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowFlockModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -427,9 +538,18 @@ export default function PensPage() {
                       className="w-full h-10 px-3 border border-slate-300 rounded-lg font-bold text-emerald-800"
                     >
                       <option value="">-- None (Unassigned) --</option>
-                      {pens.map((p) => (
-                        <option key={p._id} value={p._id}>{p.name}</option>
-                      ))}
+                      {pens
+                        .filter((p) => {
+                          // Hide pens that are at or over capacity, unless it's already the currently assigned pen for editing
+                          const isCurrentPen = editingFlock && editingFlock.penId?._id === p._id;
+                          const isAvailable = p.current_bird_count < p.capacity;
+                          return isAvailable || isCurrentPen;
+                        })
+                        .map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.name} ({p.current_bird_count}/{p.capacity} birds • {p.capacity - p.current_bird_count} spaces left)
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
@@ -484,7 +604,7 @@ export default function PensPage() {
 
                 <button
                   type="submit"
-                  className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all"
+                  className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl transition-all cursor-pointer"
                 >
                   {editingFlock ? 'Update & Reassign Flock' : 'Save Flock Batch'}
                 </button>
